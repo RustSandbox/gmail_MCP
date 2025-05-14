@@ -9,6 +9,52 @@ use std::time::Duration;
 use tokio::{task, time};
 use tracing_subscriber::fmt;
 
+// Import the parser module for infix to postfix conversion.
+mod parser;
+use parser::{ParseError, infix_to_postfix};
+
+/// Demonstrates converting an infix expression to postfix notation using the parser module.
+/// This function prints the result or error to the console.
+fn demo_infix_to_postfix() {
+    // Example infix expression (only single-digit numbers and '+'/'-' are supported)
+    let infix = "2+3-4";
+    match infix_to_postfix(infix) {
+        Ok(postfix) => {
+            println!("Infix: {infix} => Postfix: {postfix}");
+        }
+        Err(e) => {
+            println!("Failed to parse infix expression: {e:?}");
+        }
+    }
+}
+
+/// Converts the body of an EmailSummary from HTML to plain text if it looks like HTML.
+/// This function uses a blocking task with a timeout to prevent freezing the application.
+///
+/// Arguments:
+///     summary: &mut EmailSummary - The email summary whose body is to be converted.
+///
+/// Returns:
+///     () - The summary is updated in place.
+async fn convert_html_to_text(summary: &mut EmailSummary) {
+    if summary.body_raw.trim_start().starts_with('<') {
+        let html = summary.body_raw.clone();
+        let handle = task::spawn_blocking(move || html_to_text(html.as_bytes(), 80));
+        match time::timeout(Duration::from_millis(500), handle).await {
+            Ok(Ok(txt)) => {
+                tracing::debug!("HTML→text conversion succeeded");
+                summary.body_raw = txt;
+            }
+            Ok(Err(e)) => {
+                tracing::warn!(error = ?e, "html→text conversion failed – keeping raw HTML");
+            }
+            Err(_) => {
+                tracing::warn!("html→text conversion timed out – keeping raw HTML");
+            }
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt()
@@ -20,52 +66,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let json = gmailrs::run().await?;
     let summaries: Vec<EmailSummary> = serde_json::from_str(&json)?;
 
-    // Convert bodies that look like HTML to Markdown.
-    //
-    // We run the conversion inside a blocking task with a **time-out** so that
-    // malformed or extremely large HTML fragments do **not** freeze the entire
-    // application (see known issues in html2md/html5ever regarding infinite
-    // loops for certain inputs).
-    //
-    // If the conversion exceeds 500 ms we fall back to the raw body and emit a
-    // warning via `tracing`.
     let mut converted: Vec<EmailSummary> = Vec::with_capacity(summaries.len());
 
     for (idx, mut s) in summaries.into_iter().enumerate() {
         tracing::debug!(msg_index = idx, id = %s.id, "Converting body if HTML");
-        // Only attempt conversion if the body *looks* like HTML.
-        if s.body_raw.trim_start().starts_with('<') {
-            let html = s.body_raw.clone();
-
-            // Spawn the CPU-heavy conversion (HTML → plain text) on a blocking thread.
-            let handle = task::spawn_blocking(move || html_to_text(html.as_bytes(), 80));
-
-            match time::timeout(Duration::from_millis(500), handle).await {
-                // Conversion completed in time → use the plain-text version.
-                Ok(Ok(txt)) => {
-                    tracing::debug!(msg_index = idx, "HTML→text conversion succeeded");
-                    s.body_raw = txt;
-                }
-
-                // Conversion panicked or the task failed ✗ → keep raw.
-                Ok(Err(e)) => {
-                    tracing::warn!(error = ?e, "html→text conversion failed – keeping raw HTML");
-                }
-
-                // We hit the 500 ms deadline ✗ → keep raw and move on.
-                Err(_) => {
-                    tracing::warn!("html→text conversion timed out – keeping raw HTML");
-                }
-            }
-        }
-
+        convert_html_to_text(&mut s).await;
         converted.push(s);
-
         tracing::debug!(msg_index = idx, "Message processing done");
     }
 
     tracing::info!("All messages processed, outputting JSON");
     println!("{}", serde_json::to_string_pretty(&converted)?);
+
+    // Call the infix-to-postfix demo function
+    demo_infix_to_postfix();
 
     Ok(())
 }
