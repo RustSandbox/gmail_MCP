@@ -31,7 +31,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // warning via `tracing`.
     let mut converted: Vec<EmailSummary> = Vec::with_capacity(summaries.len());
 
-    for mut s in summaries {
+    for (idx, mut s) in summaries.into_iter().enumerate() {
+        tracing::debug!(msg_index = idx, id = %s.id, "Converting body if HTML");
         // Only attempt conversion if the body *looks* like HTML.
         if s.body_raw.trim_start().starts_with('<') {
             let html = s.body_raw.clone();
@@ -41,7 +42,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             match time::timeout(Duration::from_millis(500), handle).await {
                 // Conversion completed in time → use the plain-text version.
-                Ok(Ok(txt)) => s.body_raw = txt,
+                Ok(Ok(txt)) => {
+                    tracing::debug!(msg_index = idx, "HTML→text conversion succeeded");
+                    s.body_raw = txt;
+                }
 
                 // Conversion panicked or the task failed ✗ → keep raw.
                 Ok(Err(e)) => {
@@ -56,8 +60,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         converted.push(s);
+
+        tracing::debug!(msg_index = idx, "Message processing done");
     }
 
+    tracing::info!("All messages processed, outputting JSON");
     println!("{}", serde_json::to_string_pretty(&converted)?);
+
     Ok(())
 }

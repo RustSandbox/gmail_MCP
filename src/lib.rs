@@ -101,6 +101,7 @@ pub async fn run() -> Result<String, Box<dyn std::error::Error>> {
     // For library use we avoid println-noise; caller can log if desired.
 
     info!("Reading application secret");
+    debug!("Loading client_secret.json from disk");
     let secret = yup_oauth2::read_application_secret("client_secret.json")
         .await
         .expect("Failed to read client_secret.json. Please ensure you have downloaded the OAuth 2.0 client credentials (not service account) from Google Cloud Console.");
@@ -108,6 +109,7 @@ pub async fn run() -> Result<String, Box<dyn std::error::Error>> {
     // -- credential load successful
 
     info!("Building authenticator");
+    debug!("Starting OAuth2 installed flow");
     let scopes = &["https://www.googleapis.com/auth/gmail.readonly"];
     let auth = InstalledFlowAuthenticator::builder(secret, InstalledFlowReturnMethod::HTTPRedirect)
         .persist_tokens_to_disk("token_cache.json")
@@ -132,6 +134,7 @@ pub async fn run() -> Result<String, Box<dyn std::error::Error>> {
     // Gmail hub ready – start fetching messages
 
     info!("Listing messages");
+    debug!("Fetching latest 10 messages from Gmail API");
     let result = hub
         .users()
         .messages_list("me")
@@ -151,11 +154,12 @@ pub async fn run() -> Result<String, Box<dyn std::error::Error>> {
         ) => {
             info!(count = messages.len(), "Messages retrieved");
             let mut summaries: Vec<EmailSummary> = Vec::new();
-            for message in messages {
+            for (idx, message) in messages.into_iter().enumerate() {
+                debug!(msg_index = idx, "Processing message stub");
                 if let Some(id) = message.id {
                     // optional: println!("Fetching details for message ID: {}", id);
                     // Fetch the full message details with explicit scope
-                    debug!(%id, "Fetching full message");
+                    debug!(%id, "Fetching full message metadata and payload");
                     match hub
                         .users()
                         .messages_get("me", &id)
@@ -186,6 +190,7 @@ pub async fn run() -> Result<String, Box<dyn std::error::Error>> {
 
                                     trace!(bytes = body_raw.len(), "Converting body to markdown");
 
+                                    debug!(%id, "Message summarised and added to list");
                                     summaries.push(EmailSummary {
                                         id: id.clone(),
                                         from,
@@ -221,6 +226,7 @@ pub async fn run() -> Result<String, Box<dyn std::error::Error>> {
             // Serialize collected summaries to JSON string
             info!("Conversion to JSON complete");
             let json = serde_json::to_string_pretty(&summaries)?;
+            debug!(bytes = json.len(), "JSON payload size");
             return Ok(json);
         }
         _ => {
