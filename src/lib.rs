@@ -7,7 +7,6 @@
 //! minimal refactoring required to wrap it inside a function so that it can be reused
 //! by any binary target.
 
-use base64::{Engine, engine::general_purpose::URL_SAFE};
 use gmail1::Gmail;
 use gmail1::api::ListMessagesResponse;
 use gmail1::api::MessagePart;
@@ -15,11 +14,13 @@ use gmail1::hyper_rustls::HttpsConnectorBuilder;
 use gmail1::hyper_util::client::legacy::Client;
 use gmail1::hyper_util::rt::TokioExecutor;
 use google_gmail1 as gmail1;
+use serde::Deserialize;
 use serde::Serialize;
+use tracing::{debug, error, info, trace};
 use yup_oauth2::{InstalledFlowAuthenticator, InstalledFlowReturnMethod};
 
 /// Lightweight representation of an email message that our API returns.
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct EmailSummary {
     /// The unique Gmail message ID.
     pub id: String,
@@ -29,15 +30,17 @@ pub struct EmailSummary {
     pub subject: String,
     /// A short snippet of the message body.
     pub snippet: String,
-    /// Plain-text body (best-effort).
-    pub body: String,
+    /// Raw body (HTML or plain text).
+    pub body_raw: String,
 }
 
 /// Extract the plain-text body from a `Message`. Falls back to empty string.
 fn bytes_to_string(data: &[u8]) -> Option<String> {
+    trace!(len = data.len(), "Converting bytes to string");
     String::from_utf8(data.to_vec()).ok()
 }
 
+#[tracing::instrument(level = "debug", skip(msg))]
 fn extract_body(msg: &gmail1::api::Message) -> String {
     // First, try top-level body
     if let Some(payload) = &msg.payload {
@@ -60,6 +63,7 @@ fn extract_body(msg: &gmail1::api::Message) -> String {
 }
 
 /// Recursively traverse message parts to find the first `text/plain` body.
+#[tracing::instrument(level = "trace", skip(parts))]
 fn find_plain_text(parts: &[MessagePart]) -> Option<String> {
     for part in parts {
         if part.mime_type.as_deref() == Some("text/plain") {
@@ -96,14 +100,14 @@ fn find_plain_text(parts: &[MessagePart]) -> Option<String> {
 pub async fn run() -> Result<String, Box<dyn std::error::Error>> {
     // For library use we avoid println-noise; caller can log if desired.
 
-    // Load OAuth 2.0 credentials from the client secret file
+    info!("Reading application secret");
     let secret = yup_oauth2::read_application_secret("client_secret.json")
         .await
         .expect("Failed to read client_secret.json. Please ensure you have downloaded the OAuth 2.0 client credentials (not service account) from Google Cloud Console.");
 
     // -- credential load successful
 
-    // Set up the authenticator with HTTP redirect method and token storage
+    info!("Building authenticator");
     let scopes = &["https://www.googleapis.com/auth/gmail.readonly"];
     let auth = InstalledFlowAuthenticator::builder(secret, InstalledFlowReturnMethod::HTTPRedirect)
         .persist_tokens_to_disk("token_cache.json")
@@ -127,7 +131,7 @@ pub async fn run() -> Result<String, Box<dyn std::error::Error>> {
 
     // Gmail hub ready – start fetching messages
 
-    // List messages in the user's inbox with a maximum of 10 results
+    info!("Listing messages");
     let result = hub
         .users()
         .messages_list("me")
@@ -145,11 +149,13 @@ pub async fn run() -> Result<String, Box<dyn std::error::Error>> {
                 ..
             },
         ) => {
+            info!(count = messages.len(), "Messages retrieved");
             let mut summaries: Vec<EmailSummary> = Vec::new();
             for message in messages {
                 if let Some(id) = message.id {
                     // optional: println!("Fetching details for message ID: {}", id);
                     // Fetch the full message details with explicit scope
+                    debug!(%id, "Fetching full message");
                     match hub
                         .users()
                         .messages_get("me", &id)
@@ -159,6 +165,7 @@ pub async fn run() -> Result<String, Box<dyn std::error::Error>> {
                         .await
                     {
                         Ok((_, msg)) => {
+                            debug!(%id, "Message fetched successfully");
                             if let Some(payload) = &msg.payload {
                                 if let Some(headers) = &payload.headers {
                                     let subject = headers
@@ -175,26 +182,22 @@ pub async fn run() -> Result<String, Box<dyn std::error::Error>> {
 
                                     let snippet = msg.snippet.clone().unwrap_or_default();
 
-                                    let body = extract_body(&msg);
+                                    let body_raw = extract_body(&msg);
 
-                                    // Optional: retain debug logging
-                                    // println!("From: {}", from);
-                                    // println!("Subject: {}", subject);
-                                    // println!("Snippet: {}", snippet);
-                                    // println!("-----------------------------------");
+                                    trace!(bytes = body_raw.len(), "Converting body to markdown");
 
                                     summaries.push(EmailSummary {
                                         id: id.clone(),
                                         from,
                                         subject,
                                         snippet,
-                                        body,
+                                        body_raw,
                                     });
                                 }
                             }
                         }
                         Err(e) => {
-                            eprintln!("Error fetching message {}: {:?}", id, e);
+                            error!(%id, error = ?e, "Failed to fetch message");
                             // If we get a permission denied error, we need to re-authenticate
                             if let gmail1::Error::BadRequest(ref err) = e {
                                 if let Some(error) = err.get("error") {
@@ -216,6 +219,7 @@ pub async fn run() -> Result<String, Box<dyn std::error::Error>> {
                 }
             }
             // Serialize collected summaries to JSON string
+            info!("Conversion to JSON complete");
             let json = serde_json::to_string_pretty(&summaries)?;
             return Ok(json);
         }
