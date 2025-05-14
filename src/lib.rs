@@ -7,8 +7,10 @@
 //! minimal refactoring required to wrap it inside a function so that it can be reused
 //! by any binary target.
 
+use base64::{Engine, engine::general_purpose::URL_SAFE};
 use gmail1::Gmail;
 use gmail1::api::ListMessagesResponse;
+use gmail1::api::MessagePart;
 use gmail1::hyper_rustls::HttpsConnectorBuilder;
 use gmail1::hyper_util::client::legacy::Client;
 use gmail1::hyper_util::rt::TokioExecutor;
@@ -27,6 +29,56 @@ pub struct EmailSummary {
     pub subject: String,
     /// A short snippet of the message body.
     pub snippet: String,
+    /// Plain-text body (best-effort).
+    pub body: String,
+}
+
+/// Extract the plain-text body from a `Message`. Falls back to empty string.
+fn bytes_to_string(data: &[u8]) -> Option<String> {
+    String::from_utf8(data.to_vec()).ok()
+}
+
+fn extract_body(msg: &gmail1::api::Message) -> String {
+    // First, try top-level body
+    if let Some(payload) = &msg.payload {
+        if let Some(body) = &payload.body {
+            if let Some(data) = &body.data {
+                if let Some(txt) = bytes_to_string(data) {
+                    return txt;
+                }
+            }
+        }
+
+        // Recursively search parts for text/plain
+        if let Some(parts) = &payload.parts {
+            if let Some(txt) = find_plain_text(parts) {
+                return txt;
+            }
+        }
+    }
+    String::new()
+}
+
+/// Recursively traverse message parts to find the first `text/plain` body.
+fn find_plain_text(parts: &[MessagePart]) -> Option<String> {
+    for part in parts {
+        if part.mime_type.as_deref() == Some("text/plain") {
+            if let Some(body) = &part.body {
+                if let Some(data) = &body.data {
+                    if let Some(txt) = bytes_to_string(data) {
+                        return Some(txt);
+                    }
+                }
+            }
+        }
+        // recurse deeper
+        if let Some(sub) = &part.parts {
+            if let Some(txt) = find_plain_text(sub) {
+                return Some(txt);
+            }
+        }
+    }
+    None
 }
 
 /// Execute the Gmail inbox fetch routine.
@@ -96,18 +148,19 @@ pub async fn run() -> Result<String, Box<dyn std::error::Error>> {
             let mut summaries: Vec<EmailSummary> = Vec::new();
             for message in messages {
                 if let Some(id) = message.id {
-                    println!("Fetching details for message ID: {}", id);
+                    // optional: println!("Fetching details for message ID: {}", id);
                     // Fetch the full message details with explicit scope
                     match hub
                         .users()
                         .messages_get("me", &id)
+                        .format("full")
                         .add_scope("https://www.googleapis.com/auth/gmail.readonly")
                         .doit()
                         .await
                     {
                         Ok((_, msg)) => {
-                            if let Some(payload) = msg.payload {
-                                if let Some(headers) = payload.headers {
+                            if let Some(payload) = &msg.payload {
+                                if let Some(headers) = &payload.headers {
                                     let subject = headers
                                         .iter()
                                         .find(|h| h.name.as_deref() == Some("Subject"))
@@ -120,8 +173,9 @@ pub async fn run() -> Result<String, Box<dyn std::error::Error>> {
                                         .and_then(|h| h.value.clone())
                                         .unwrap_or_else(|| "Unknown Sender".to_string());
 
-                                    // Take snippet once to avoid move issues
-                                    let snippet = msg.snippet.unwrap_or_default();
+                                    let snippet = msg.snippet.clone().unwrap_or_default();
+
+                                    let body = extract_body(&msg);
 
                                     // Optional: retain debug logging
                                     // println!("From: {}", from);
@@ -134,6 +188,7 @@ pub async fn run() -> Result<String, Box<dyn std::error::Error>> {
                                         from,
                                         subject,
                                         snippet,
+                                        body,
                                     });
                                 }
                             }
