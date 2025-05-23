@@ -12,9 +12,21 @@ hyper-rustls = "0.24"
 hyper-util = { version = "0.1", features = ["full"] }
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
 base64 = "0.21"
 html2md = "0.2"
 html2text = "0.6"
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
+anyhow = { version = "1.0.98", features = ["backtrace"] }
+mcp-core = { version = "0.1.50", features = ["sse", "uuid", "reqwest"] }
+mcp-core-macros = "0.1.30"
+rig-core = { git = "https://github.com/0xPlaygrounds/rig.git", branch = "main" }
+schemars = { version = "0.8.22", features = ["derive"] }
+serde_json = { version = "1.0.140", features = ["std"] }
+thiserror = "2.0.12"
+tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.19", features = [
+    "serde",
+    "json",
+    "tracing",
+    "time",
+] }
+colored_json = "5.0.0"

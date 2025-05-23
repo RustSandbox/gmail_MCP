@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="PrettierConfiguration">
+    <option name="myConfigurationMode" value="AUTOMATIC" />
+    <option name="myRunOnSave" value="true" />
+  </component>
+  <component name="ProjectInspectionProfilesVisibleTreeState">
+    <entry key="Project Default">
+      <profile-state>
+        <expanded-state>
+          <State>
+            <id>Cargo.tomlRust</id>
+          </State>
+          <State>
+            <id>LintsRust</id>
+          </State>
+          <State>
+            <id>Naming conventionsLintsRust</id>
+          </State>
+          <State>
+            <id>Rust</id>
+          </State>
+        </expanded-state>
+        <selected-state>
+          <State>
+            <id>RsExperimentalUnresolvedPath</id>
+          </State>
+        </selected-state>
+      </profile-state>
+    </entry>
+  </component>
+  <component name="RsExternalLinterProjectSettings">
+    <option name="tool" value="Clippy" />
+  </component>
+  <component name="RsVcsConfiguration">
+    <option name="rustFmt" value="true" />
+  </component>
+  <component name="RustProjectSettings">
+    <option name="toolchainHomeDirectory" value="$USER_HOME$/.cargo/bin" />
+  </component>
+  <component name="RustfmtProjectSettings">
+    <option name="useRustfmt" value="true" />
+    <option name="useRustfmt2" value="false" />
+  </component>
+  <component name="TestsVcsConfig">
+    <option name="enabled" value="true" />
+  </component>
+</project>
