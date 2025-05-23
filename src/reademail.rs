@@ -1,26 +1,30 @@
 use crate::EmailSummary;
 use html2text::from_read as html_to_text;
-use std::time::Duration;
-use tokio::{task, time};
+use tokio::task;
 use tracing_subscriber;
 
 /// Reads emails from Gmail, processes them, and outputs as JSON.
 ///
 /// This function fetches emails via the Gmail API, converts any HTML content to plain text,
 /// and outputs the processed emails as formatted JSON.
-pub async fn read_emails() -> Result<String, Box<dyn std::error::Error>> {
+///
+/// # Arguments
+/// * `max_results` - The maximum number of emails to fetch (1-500, as per Gmail API limits)
+pub async fn read_emails(max_results: u32) -> Result<String, Box<dyn std::error::Error>> {
     // Set up tracing
     initialize_logging()?;
-    tracing::info!("Starting gmailrs application");
+    tracing::info!(max_results, "Starting gmailrs application");
 
     // Fetch emails from Gmail API
-    let json = crate::run().await?;
-    let summaries: Vec<EmailSummary> = serde_json::from_str(&json)?;
+    let json = crate::run(max_results).await?;
+    let mut response: crate::EmailResponse = serde_json::from_str(&json)?;
 
-    // Process and output emails
-    let result = process_and_output_emails(summaries).await?;
+    // Process emails (convert HTML to text)
+    response.emails = process_email_summaries(response.emails).await;
 
-    Ok(result)
+    // Return the complete response as JSON
+    let result_json = serde_json::to_string_pretty(&response)?;
+    Ok(result_json)
 }
 
 /// Initialize the logging infrastructure
@@ -52,9 +56,8 @@ async fn process_and_output_emails(
     let converted = process_email_summaries(summaries).await;
 
     // Output as JSON
-    tracing::info!("All messages processed, outputting JSON");
+    tracing::info!("All messages processed, returning JSON");
     let json_output = serde_json::to_string_pretty(&converted)?;
-    println!("{}", json_output);
 
     Ok(json_output)
 }
@@ -96,9 +99,19 @@ mod tests {
 
     #[tokio::test]
     pub async fn async_read_emails() {
-        let result = read_emails().await.unwrap();
-        println!("----------------------------------");
-        println!("{}", result);
-        println!("----------------------------------");
+        // Test with fetching 10 emails
+        let result = read_emails(10).await.unwrap();
+
+        // Parse and display the response
+        if let Ok(response) = serde_json::from_str::<crate::EmailResponse>(&result) {
+            println!("----------------------------------");
+            println!("Fetched {} emails:", response.count);
+            for email in response.emails {
+                println!("From: {}", email.from);
+                println!("Subject: {}", email.subject);
+                println!("---");
+            }
+            println!("----------------------------------");
+        }
     }
 }
