@@ -2,7 +2,6 @@
 //! Simple library for fetching Gmail emails with OAuth2 authentication.
 
 pub mod reademail;
-pub mod url_remover;
 
 use gmail1::hyper_rustls::HttpsConnectorBuilder;
 use gmail1::hyper_util::{client::legacy::Client, rt::TokioExecutor};
@@ -88,20 +87,9 @@ fn find_plain_text(parts: &[MessagePart]) -> Option<String> {
     None
 }
 
-/// Handle authentication errors with helpful instructions
-fn handle_auth_error() -> String {
-    error!("Gmail API: Authentication failed - token may be expired or invalid");
-    warn!("Gmail API: To fix authentication issues:");
-    warn!("Gmail API: 1. Delete 'token_cache.json' file");
-    warn!("Gmail API: 2. Restart the server");
-    warn!("Gmail API: 3. Re-authenticate when browser opens");
-    warn!("Gmail API: 4. Make sure Gmail API is enabled in Google Cloud Console");
-    "Authentication failed. Please delete token_cache.json and restart the server to re-authenticate.".to_string()
-}
-
 /// Fetch Gmail emails using OAuth2 authentication
 pub async fn run(max_results: u32) -> Result<String, Box<dyn std::error::Error>> {
-    let max_results = max_results.min(500).max(1);
+    let max_results = max_results.clamp(1, 500);
     info!("Gmail API: Starting to fetch {} emails", max_results);
 
     // Load credentials

@@ -25,13 +25,9 @@ async fn gmail(
     );
 
     match read_emails(max_results).await {
-        Ok(emails) => {
-            info!("Successfully fetched emails");
-            Ok(tool_text_content!(emails))
-        }
+        Ok(emails) => Ok(tool_text_content!(emails)),
         Err(e) => {
-            let error_msg = format!("Failed to fetch Gmail emails: {}", e);
-            info!("Error: {}", error_msg);
+            info!("Error fetching emails: {}", e);
             Err(e)
         }
     }

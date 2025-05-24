@@ -1,6 +1,6 @@
-use crate::url_remover::UrlRemover;
 use crate::{EmailResponse, EmailSummary};
 use html2text::from_read as html_to_text;
+use regex::Regex;
 use tokio::task;
 use tracing::{error, info, warn};
 
@@ -10,10 +10,7 @@ pub async fn read_emails(max_results: u32) -> Result<String, Box<dyn std::error:
 
     let json = match crate::run(max_results).await {
         Ok(json) => {
-            info!(
-                "Raw Gmail API response received, length: {} bytes",
-                json.len()
-            );
+            info!("Gmail API response received ({} bytes)", json.len());
             json
         }
         Err(e) => {
@@ -22,46 +19,26 @@ pub async fn read_emails(max_results: u32) -> Result<String, Box<dyn std::error:
         }
     };
 
-    let mut response: EmailResponse = match serde_json::from_str::<EmailResponse>(&json) {
-        Ok(response) => {
-            info!("Parsed {} emails from Gmail response", response.count);
-            response
-        }
-        Err(e) => {
-            error!("Failed to parse Gmail response JSON: {}", e);
-            return Err(e.into());
-        }
-    };
+    let mut response: EmailResponse = serde_json::from_str(&json)?;
 
     if response.emails.is_empty() {
         warn!("No emails found in Gmail response");
         return Ok(serde_json::to_string_pretty(&response)?);
     }
 
-    // Process emails (convert HTML to text and remove URLs)
-    let email_count = response.emails.len();
-    info!(
-        "Processing {} emails (HTML to text conversion and URL removal)",
-        email_count
-    );
-    for (i, email) in response.emails.iter_mut().enumerate() {
-        info!(
-            "Processing email {}/{}: {}",
-            i + 1,
-            email_count,
-            email.subject
-        );
+    info!("Processing {} emails", response.emails.len());
+    for email in response.emails.iter_mut() {
         convert_html_to_text(email).await;
     }
 
-    info!("Email processing completed successfully");
+    info!("Email processing completed");
     Ok(serde_json::to_string_pretty(&response)?)
 }
 
 /// Convert HTML to text and remove URLs
 pub async fn convert_html_to_text(summary: &mut EmailSummary) {
     // Convert HTML to text if needed
-    if summary.body_raw.starts_with("<") {
+    if summary.body_raw.starts_with('<') {
         let html_body = summary.body_raw.clone();
         let plain_text = task::spawn_blocking(move || html_to_text(html_body.as_bytes(), 100))
             .await
@@ -69,16 +46,19 @@ pub async fn convert_html_to_text(summary: &mut EmailSummary) {
         summary.body_raw = plain_text;
     }
 
-    // Remove URLs from text
-    summary.body_raw = remove_urls_from_text(&summary.body_raw);
+    // Remove URLs from text (simplified inline implementation)
+    summary.body_raw = remove_urls_simple(&summary.body_raw);
 }
 
-/// Remove URLs from email body text
-pub fn remove_urls_from_text(text: &str) -> String {
-    match UrlRemover::new() {
-        Ok(remover) => remover.clean_text(text),
-        Err(_) => text.to_string(),
-    }
+/// Simple URL removal function
+fn remove_urls_simple(text: &str) -> String {
+    // Simple regex to match common URL patterns
+    let url_regex = Regex::new(r"https?://[^\s]+|www\.[^\s]+").unwrap_or_else(|_| {
+        // If regex fails, return a regex that matches nothing
+        Regex::new(r"$^").unwrap()
+    });
+
+    url_regex.replace_all(text, "").to_string()
 }
 
 #[cfg(test)]
@@ -88,7 +68,7 @@ mod tests {
     #[test]
     fn test_url_removal() {
         let test_text = "Check out this link: https://example.com and this one too: www.test.org. More text here.";
-        let cleaned = remove_urls_from_text(test_text);
+        let cleaned = remove_urls_simple(test_text);
 
         assert!(!cleaned.contains("https://example.com"));
         assert!(!cleaned.contains("www.test.org"));
