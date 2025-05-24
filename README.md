@@ -1,5 +1,9 @@
 # Gmail MCP Server 📧
 
+<div align="center">
+  <img src="gmail_mcp_logo.png" alt="Gmail MCP Server Logo" width="200"/>
+</div>
+
 A **clean, simplified** Model Context Protocol (MCP) server for Gmail integration. Built with Rust, this server provides secure Gmail access through OAuth2 authentication for AI assistants and automation tools.
 
 ## 🎯 Learning Journey & Attribution
