@@ -2,6 +2,12 @@
 
 A **clean, simplified** Model Context Protocol (MCP) server for Gmail integration. Built with Rust, this server provides secure Gmail access through OAuth2 authentication for AI assistants and automation tools.
 
+## 🎯 Learning Journey & Attribution
+
+**📚 Rust Learning Exercise**: This project serves as a hands-on exercise in my journey of learning Rust programming. It demonstrates practical application of Rust concepts including async programming, error handling, OAuth2 implementation, and clean code architecture.
+
+**🙏 Inspired by Rig Framework**: This implementation replicates and adapts examples from the excellent [**Rig framework**](https://github.com/0xPlaygrounds/rig) by 0xPlaygrounds. Rig is a powerful Rust framework for building portable, modular & lightweight AI agents with support for multiple LLM providers and vector stores. This Gmail MCP server was built as a learning exercise based on Rig's patterns and architecture.
+
 ## ✨ Features
 
 - 🔐 **Secure OAuth2 Authentication** - Google-standard security
