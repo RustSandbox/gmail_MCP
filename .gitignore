@@ -1,9 +1,51 @@
+# Rust build artifacts
 /target
+Cargo.lock
+
+# Authentication and secret files
 *.json
+client_secret.json
+token_cache.json
 *.pem
 *.crt
 *.key
 *.csr
-*.csr
-*.csr
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Local development
+/mcp-core
+/examples
+/temp
+/tmp
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+logs/
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
 /Users/hamzeghalebi/projects/learning/rust/email-servers/gmailrs/mcp-core

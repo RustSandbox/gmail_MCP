@@ -1,5 +1,5 @@
 use anyhow::Result;
-use gmailrs::reademail::read_emails;
+use gmail_mcp_server::reademail::read_emails;
 use mcp_core::{
     server::Server,
     tool_text_content,
