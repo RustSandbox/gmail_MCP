@@ -16,8 +16,8 @@ This project prioritizes:
 1. **Fork** the repository
 2. **Clone** your fork:
    ```bash
-   git clone https://github.com/your-username/gmail-mcp-server
-   cd gmail-mcp-server
+   git clone https://github.com/your-fork/gmail_MCP
+   cd gmail_MCP
    ```
 3. **Install Rust** (if not already installed):
    ```bash

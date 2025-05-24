@@ -28,10 +28,10 @@ ehthumbs.db
 Thumbs.db
 
 # Local development
-/mcp-core
-/examples
-/temp
-/tmp
+./mcp-core
+./examples
+./temp
+./tmp
 
 # Environment files
 .env
