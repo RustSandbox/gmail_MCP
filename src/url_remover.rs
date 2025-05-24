@@ -1,7 +1,7 @@
 use regex::Regex;
 use std::error::Error;
 
-/// A utility for removing URLs from text content.
+/// Utility for removing URLs from text content
 pub struct UrlRemover {
     url_pattern: Regex,
 }
@@ -56,13 +56,12 @@ impl UrlRemover {
     pub fn clean_text(&self, text: &str) -> String {
         let without_urls = self.remove_urls(text);
 
-        // Remove multiple spaces
+        // Remove multiple spaces and empty lines
         let without_multiple_spaces = Regex::new(r"\s+")
             .unwrap()
             .replace_all(&without_urls, " ")
             .to_string();
 
-        // Split into lines, filter out empty ones, and join back
         without_multiple_spaces
             .lines()
             .filter(|line| !line.trim().is_empty())
