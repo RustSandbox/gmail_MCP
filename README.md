@@ -34,8 +34,8 @@ This server implements the [Model Context Protocol (MCP)](https://docs.anthropic
 
 1. **Clone & Build**
    ```bash
-   git clone https://github.com/your-username/gmail-mcp-server
-   cd gmail-mcp-server
+   git clone https://github.com/RustSandbox/gmail_MCP.git
+   cd gmail_MCP
    cargo build --release
    ```
 
