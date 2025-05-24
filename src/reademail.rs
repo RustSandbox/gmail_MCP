@@ -1,4 +1,5 @@
 use crate::EmailSummary;
+use crate::url_remover::UrlRemover;
 use html2text::from_read as html_to_text;
 use tokio::task;
 use tracing_subscriber;
@@ -74,6 +75,10 @@ pub async fn convert_html_to_text(summary: &mut EmailSummary) {
     } else {
         tracing::debug!("Body is not HTML, skipping conversion");
     }
+
+    // After HTML conversion (or if it was already plain text), remove URLs
+    tracing::debug!("Removing URLs from email body");
+    summary.body_raw = remove_urls_from_text(&summary.body_raw);
 }
 
 /// Process email summaries by converting HTML content to plain text.
@@ -91,6 +96,44 @@ async fn process_email_summaries(summaries: Vec<EmailSummary>) -> Vec<EmailSumma
     }
 
     converted
+}
+
+/// Function to remove URLs from email body text
+///
+/// This function creates a UrlRemover instance and uses it to clean URLs
+/// from the email body content, providing cleaner text for analysis.
+///
+/// # Arguments
+/// * `text` - The email body text that may contain URLs
+///
+/// # Returns
+/// * `String` - The cleaned text with URLs removed
+///
+/// # Example
+/// ```
+/// let cleaned = remove_urls_from_text("Check this out: https://example.com");
+/// // Result: "Check this out: "
+/// ```
+pub fn remove_urls_from_text(text: &str) -> String {
+    match UrlRemover::new() {
+        Ok(remover) => {
+            tracing::debug!("Removing URLs from text of length {}", text.len());
+            let cleaned = remover.clean_text(text);
+            tracing::debug!(
+                "Text cleaned: {} -> {} characters",
+                text.len(),
+                cleaned.len()
+            );
+            cleaned
+        }
+        Err(e) => {
+            tracing::warn!(
+                "Failed to create URL remover: {:?}, returning original text",
+                e
+            );
+            text.to_string()
+        }
+    }
 }
 
 #[cfg(test)]
@@ -113,5 +156,44 @@ mod tests {
             }
             println!("----------------------------------");
         }
+    }
+
+    #[test]
+    fn test_url_removal() {
+        // Test URL removal functionality
+        let test_text = "Check out this link: https://example.com and this one too: www.test.org. More text here.";
+        let cleaned = remove_urls_from_text(test_text);
+
+        println!("Original: {}", test_text);
+        println!("Cleaned: {}", cleaned);
+
+        // Verify URLs are removed
+        assert!(!cleaned.contains("https://example.com"));
+        assert!(!cleaned.contains("www.test.org"));
+        assert!(cleaned.contains("Check out this link:"));
+        assert!(cleaned.contains("More text here."));
+    }
+
+    #[tokio::test]
+    async fn test_email_processing_with_urls() {
+        // Test email processing that includes URL removal
+        let mut email = crate::EmailSummary {
+            id: "test_id".to_string(),
+            from: "test@example.com".to_string(),
+            subject: "Test Subject".to_string(),
+            snippet: "Test snippet".to_string(),
+            body_raw: "Check this out: https://example.com\n\nVisit www.test.org for more info.\n\nThanks!".to_string(),
+        };
+
+        // Process the email (this should remove URLs)
+        convert_html_to_text(&mut email).await;
+
+        // Verify URLs were removed
+        assert!(!email.body_raw.contains("https://example.com"));
+        assert!(!email.body_raw.contains("www.test.org"));
+        assert!(email.body_raw.contains("Check this out:"));
+        assert!(email.body_raw.contains("Thanks!"));
+
+        println!("Processed email body: {}", email.body_raw);
     }
 }

@@ -11,6 +11,35 @@ A Rust client for interacting with the Gmail API, providing a simple and efficie
 - 🛡️ Secure credential handling
 - ⚡ Async/await support
 - 🔢 Fetch a specific number of emails (1-500)
+- **Gmail API Integration**: Fetch emails using OAuth2 authentication
+- **HTML to Text Conversion**: Automatically converts HTML email content to readable plain text
+- **URL Removal**: Eliminates URLs from email bodies for cleaner text analysis
+- **Configurable Results**: Specify the number of emails to fetch (1-500)
+- **MCP Server**: Run as a Model Context Protocol server
+- **JSON Output**: Structured JSON response format
+- **Example Programs**: Ready-to-run examples for different use cases
+
+## Email Processing Features
+
+### URL Removal
+
+The library automatically removes URLs from email bodies during processing to provide cleaner text for analysis. This feature:
+
+- **Detects various URL formats**: `https://`, `http://`, and `www.` URLs
+- **Preserves text content**: Only removes URLs while keeping the surrounding text
+- **Cleans up formatting**: Removes extra whitespace and empty lines left after URL removal
+- **Integrated processing**: Automatically applied after HTML-to-text conversion
+
+Example:
+```rust
+use gmailrs::reademail::remove_urls_from_text;
+
+let text_with_urls = "Check out https://example.com and visit www.test.org for more info.";
+let clean_text = remove_urls_from_text(text_with_urls);
+// Result: "Check out and visit for more info."
+```
+
+The URL removal is automatically applied to all email bodies during the email fetching process, ensuring that the returned email content is clean and ready for analysis.
 
 ## Prerequisites
 

@@ -9,6 +9,7 @@
 
 mod parser;
 pub mod reademail;
+pub mod url_remover;
 
 use gmail1::Gmail;
 use gmail1::api::ListMessagesResponse;

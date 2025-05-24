@@ -30,3 +30,4 @@ tracing-subscriber = { version = "0.3.19", features = [
     "time",
 ] }
 colored_json = "5.0.0"
+regex = "1.10"

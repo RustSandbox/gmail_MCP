@@ -861,6 +861,7 @@ dependencies = [
  "hyper-util",
  "mcp-core",
  "mcp-core-macros",
+ "regex",
  "rig-core",
  "schemars",
  "serde",
